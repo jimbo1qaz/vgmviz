@@ -18,14 +18,14 @@ Note that the order "feels" reversed (compare to channel, operator, param).
 """
 
 
-def ym2612_pack(chan, op, param):
+def reg_pack(chan, op, param):
     assert 0 <= chan < 3
     assert 0 <= op < 4
     assert param % 0x10 == 0
     return param + (4 * op) + chan
 
 
-def ym2612_unpack(register):
+def reg_unpack(register):
     chan = register & 0x03
     op = (register // 4) & 0x03
     param = register & 0xF0
@@ -42,7 +42,7 @@ _wildcard = _Wildcard()
 _Event = Union['YM2612Port0', 'YM2612Port1']
 
 
-def ym2612_filter(chan=_wildcard, op=_wildcard, param=_wildcard) -> \
+def reg_filter(chan=_wildcard, op=_wildcard, param=_wildcard) -> \
         Callable[[_Event], bool]:
     query = (chan, op, param)
 
