@@ -18,7 +18,7 @@ class Pointer:
     def __init__(self,
                  data: bytes,
                  addr: int,
-                 endian: Endian):
+                 endian: Endian) -> None:
 
         if not isinstance(data, ByteString):
             raise TypeError('Pointer() requires bytes or bytearray (buffer API)')
@@ -48,7 +48,7 @@ class Pointer:
 
     # **** READ ****
 
-    def bytes(self, length: int, addr: int = None) -> bytes:
+    def bytes_(self, length: int, addr: int = None) -> bytes:
         if addr is not None:
             self.addr = addr
         begin = self.addr
@@ -84,7 +84,7 @@ class Pointer:
         """ Assert the existence of magic constants. """
         pos = self.addr
 
-        read = self.bytes(len(magic), addr)
+        read = self.bytes_(len(magic), addr)
         if read != magic:
             raise MagicError(f'Invalid magic at {pos}: read={read} expected={magic}')
 
@@ -99,7 +99,7 @@ class Pointer:
         nbytes = bits // 8
 
         def get_integer(self: 'Pointer', addr: int = None) -> int:
-            data = self.bytes(nbytes, addr)
+            data = self.bytes_(nbytes, addr)
             return int.from_bytes(data, self.endian, signed=signed)
 
         return get_integer
@@ -128,6 +128,6 @@ class Pointer:
         """
         addr = coalesce(addr, self.addr)
 
-        data = self.bytes(self.PTR_WIDTH_BYTES, addr)
+        data = self.bytes_(self.PTR_WIDTH_BYTES, addr)
         offset = int.from_bytes(data, self.endian, signed=True)
         return addr + offset

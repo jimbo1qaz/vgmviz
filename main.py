@@ -15,9 +15,9 @@ class LinearEventList(list):
 
 @attr.s
 class VgmFile:
-    version: int = None
-    nbytes: int = None
-    data_addr: int = None
+    nbytes: int
+    version: int
+    data_addr: int
     events: LinearEventList = attr.ib(default=attr.Factory(LinearEventList))
 
 
@@ -25,22 +25,26 @@ def parse_vgm(path: str) -> LinearEventList:
     with open(path, 'rb') as f:
         ptr = Pointer(f.read(), 0, 'little')
 
-    file = VgmFile()
-
-    parse_header(ptr, file)
+    file = parse_header(ptr)
     parse_body(ptr, file)
 
     return file.events
 
 
-def parse_header(ptr: Pointer, file: VgmFile):
+def parse_header(ptr: Pointer) -> VgmFile:
     ptr.magic(b'Vgm ', 0x00)
-    file.nbytes = ptr.offset(0x04)
-    file.version = ptr.u32(0x08)
+    nbytes = ptr.offset(0x04)
+    version = ptr.u32(0x08)
 
-    file.data_addr = 0x40
-    if file.version >= 0x150:
-        file.data_addr = ptr.offset(0x34)
+    data_addr = 0x40
+    if version >= 0x150:
+        data_addr = ptr.offset(0x34)
+
+    return VgmFile(
+        nbytes=nbytes,
+        version=version,
+        data_addr=data_addr
+    )
 
 
 def parse_body(ptr: Pointer, file: VgmFile):
@@ -87,15 +91,15 @@ class PureWait(IWait):
 
 # PCM
 class DataBlock:
-    def __init__(self, ptr: Pointer):
+    def __init__(self, ptr: Pointer) -> None:
         ptr.hexmagic('66')
         self.typ = ptr.u8()
         self.nbytes = ptr.u32()
-        self.file = ptr.bytes(self.nbytes)
+        self.file = ptr.bytes_(self.nbytes)
 
 
 class PCMSeek:
-    def __init__(self, ptr: Pointer):
+    def __init__(self, ptr: Pointer) -> None:
         self.address = ptr.u32()
 
 
@@ -105,7 +109,7 @@ class PCMWriteWait(IWait):
     n samples; n can range from 0 to 15. Note that the wait is n,
     NOT n+1. (Note: Written to first chip instance only.)
     """
-    def __init__(self, command: int):
+    def __init__(self, command: int) -> None:
         assert 0x80 <= command < 0x90, 'PCMWriteWait command out of range'
         self.delay = command - 0x80
 
@@ -113,19 +117,19 @@ class PCMWriteWait(IWait):
 # Wait
 class Wait4Bit(PureWait):
     """0x7n       : wait n+1 samples, n can range from 0 to 15."""
-    def __init__(self, command: int):
+    def __init__(self, command: int) -> None:
         assert 0x70 <= command < 0x80, 'Wait command out of range'
         self.delay = command - 0x70 + 1
 
 
 class Wait16Bit(PureWait):
-    def __init__(self, ptr: Pointer):
+    def __init__(self, ptr: Pointer) -> None:
         self.delay = ptr.u16()
 
 
 # YM2612 FM
 class Write8as8:
-    def __init__(self, ptr: Pointer):
+    def __init__(self, ptr: Pointer) -> None:
         self.reg = ptr.u8()
         self.value = ptr.u8()
 
@@ -139,7 +143,7 @@ class YM2612Port1(Write8as8):
 
 
 class PSGWrite:
-    def __init__(self, ptr: Pointer):
+    def __init__(self, ptr: Pointer) -> None:
         self.value = ptr.u8()
 
 
@@ -162,7 +166,7 @@ def time_event_list(events: LinearEventList) -> TimedEventList:
     return time_events
 
 
-T = TypeVar['T']
+T = TypeVar('T')
 
 
 # TODO unused

@@ -10,4 +10,5 @@ def coalesce(*args: Optional[T]) -> T:
     for arg in args:
         if arg is not None:
             return arg
-    return args[-1]
+    # return args[-1]
+    raise TypeError('coalesce() called with all None')
