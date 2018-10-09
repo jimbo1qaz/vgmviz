@@ -21,34 +21,34 @@ class VgmFile:
     events: LinearEventList = field(default_factory=LinearEventList)
 
 
-def parse_vgm(path: str):
+def parse_vgm(path: str) -> VgmFile:
     with open(path, 'rb') as f:
         ptr = Pointer(f.read(), 0, 'little')
 
-    data = VgmFile()
+    file = VgmFile()
 
-    parse_header(ptr, data)
-    parse_body(ptr, data)
+    parse_header(ptr, file)
+    parse_body(ptr, file)
 
-    return data
+    return file
 
 
-def parse_header(ptr: Pointer, data: VgmFile):
+def parse_header(ptr: Pointer, file: VgmFile):
     ptr.magic(b'Vgm ', 0x00)
-    data.nbytes = ptr.offset(0x04)
-    data.version = ptr.u32(0x08)
+    file.nbytes = ptr.offset(0x04)
+    file.version = ptr.u32(0x08)
 
-    data.data_addr = 0x40
-    if data.version >= 0x150:
-        data.data_addr = ptr.offset(0x34)
+    file.data_addr = 0x40
+    if file.version >= 0x150:
+        file.data_addr = ptr.offset(0x34)
 
 
-def parse_body(ptr: Pointer, data: VgmFile):
-    ev = data.events
+def parse_body(ptr: Pointer, file: VgmFile):
+    ev = file.events
 
-    ptr.seek(data.data_addr)
+    ptr.seek(file.data_addr)
     while True:
-        assert ptr.addr < data.nbytes
+        assert ptr.addr < file.nbytes
         command = ptr.u8()
 
         # PCM
@@ -87,7 +87,7 @@ class DataBlock:
         ptr.hexmagic('66')
         self.typ = ptr.u8()
         self.nbytes = ptr.u32()
-        self.data = ptr.bytes(self.nbytes)
+        self.file = ptr.bytes(self.nbytes)
 
 
 class PCMSeek:
