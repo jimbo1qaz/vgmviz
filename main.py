@@ -81,6 +81,10 @@ class IWait:
     delay: int
 
 
+class PureWait(IWait):
+    pass
+
+
 # PCM
 class DataBlock:
     def __init__(self, ptr: Pointer):
@@ -107,14 +111,14 @@ class PCMWriteWait(IWait):
 
 
 # Wait
-class Wait4Bit(IWait):
+class Wait4Bit(PureWait):
     """0x7n       : wait n+1 samples, n can range from 0 to 15."""
     def __init__(self, command: int):
         assert 0x70 <= command < 0x80, 'Wait command out of range'
         self.delay = command - 0x70 + 1
 
 
-class Wait16Bit(IWait):
+class Wait16Bit(PureWait):
     def __init__(self, ptr: Pointer):
         self.delay = ptr.u16()
 
@@ -157,7 +161,8 @@ def time_event_list(events: LinearEventList) -> TimedEventList:
     time_events = TimedEventList()
 
     for event in events:
-        time_events.append((time, event))
+        if not isinstance(event, PureWait):
+            time_events.append((time, event))
         if isinstance(event, IWait):
             time += event.delay
 
