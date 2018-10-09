@@ -197,6 +197,18 @@ def filter_ev(
     )
 
 
+def map_ev(
+        time_events: TimedEventList,
+        func: Callable[[Any], Any]
+) -> TimedEventList:
+    return TimedEventList(
+        TimedEvent(t_e.time, func(t_e.event))
+        for t_e in time_events
+    )
+
+    pass
+
+
 def main():
     bell = 'data/bell.vgm'
 

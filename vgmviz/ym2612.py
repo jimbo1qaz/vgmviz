@@ -1,7 +1,6 @@
-from typing import Union, TYPE_CHECKING, Callable
+from typing import Union, Callable
 
-if TYPE_CHECKING:
-    from vgmviz.vgm import YM2612Port0, YM2612Port1
+from vgmviz import vgm
 
 # Parameters
 
@@ -13,8 +12,11 @@ Decay2 = 0x70  # ... 5-bit decay2 rate
 KneeRelease = 0x80  # 4-bit knee amplitude (-3dB), 4-bit release rate (,*2+1)
 
 """ YM2612 register address:
-Bit field: pppp oo cc
+Bit field: 4param, 2op, 2chan
 Note that the order "feels" reversed (compare to channel, operator, param).
+
+- Each YM2612 port has 3 channels only.
+- There are 2 YM2612 ports. Port0 accesses 0..2 and Port1 accesses 3..5.
 """
 
 
@@ -29,7 +31,7 @@ def reg_unpack(register):
     chan = register & 0x03
     op = (register // 4) & 0x03
     param = register & 0xF0
-    return chan, op, param
+    return chan, op, param  # TODO add dataclass for chan,op,param
 
 
 class _Wildcard:
@@ -39,14 +41,25 @@ class _Wildcard:
 
 _wildcard = _Wildcard()
 
-_Event = Union['YM2612Port0', 'YM2612Port1']
+_Event = Union['vgm.YM2612Port0', 'vgm.YM2612Port1']
 
 
 def reg_filter(chan=_wildcard, op=_wildcard, param=_wildcard) -> \
         Callable[[_Event], bool]:
+    """ Passed into filter_ev. """
     query = (chan, op, param)
 
     def cond(e: _Event):
         return reg_unpack(e.reg) == query
 
     return cond
+
+
+def ev_unpack(e: _Event):
+    chan, op, param = reg_unpack(e.reg)
+
+    # YM2612 Port 1 accesses channels 3..5.
+    if isinstance(e, vgm.YM2612Port1):
+        chan += 3
+
+    return (chan, op, param), e.value
