@@ -187,15 +187,29 @@ def keep_type(time_events: TimedEventList, classes: List[type]) -> TimedEventLis
     )
 
 
-def filter_ev(
+_Condition = Callable[[T], bool]
+
+
+def filter_ev_type(
         time_events: TimedEventList,
         cls: Type[T],
-        cond: Callable[[T], bool] = lambda e: True
+        cond: _Condition = lambda e: True
 ) -> TimedEventList:
     return TimedEventList(
         t_e for t_e in time_events if isinstance(t_e.event, cls) and cond(t_e.event)
     )
 
+
+def filter_ev(time_events: TimedEventList, cond: _Condition) -> TimedEventList:
+    return TimedEventList(t_e for t_e in time_events if cond(t_e.event))
+
+
+def filter_ev_time(time_events: TimedEventList, begin=float('-inf'), end=float('inf')) \
+        -> TimedEventList:
+    return TimedEventList(t_e for t_e in time_events if begin <= t_e.time < end)
+
+
+# TODO truncate_ev_time, transposes the event just before, duplicates the final event.
 
 def map_ev(
         time_events: TimedEventList,
