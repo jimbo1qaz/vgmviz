@@ -10,7 +10,7 @@ setup(
     author_email='',
     description='',
     install_requires=[
-        'attrs',
+        'dataclasses;python_version<"3.7"',
         'numpy'
     ],
     tests_require=['pytest']
