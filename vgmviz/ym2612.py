@@ -1,5 +1,7 @@
 from typing import Union, Callable
 
+from dataclasses import dataclass, replace
+
 from vgmviz import vgm
 
 # Parameters
@@ -20,20 +22,6 @@ Note that the order "feels" reversed (compare to channel, operator, param).
 """
 
 
-def reg_pack(chan, op, param):
-    assert 0 <= chan < 3
-    assert 0 <= op < 4
-    assert param % 0x10 == 0
-    return param + (4 * op) + chan
-
-
-def reg_unpack(register):
-    chan = register & 0x03
-    op = (register // 4) & 0x03
-    param = register & 0xF0
-    return chan, op, param  # TODO add dataclass for chan,op,param
-
-
 class _Wildcard:
     def __eq__(self, other):
         return True
@@ -41,25 +29,69 @@ class _Wildcard:
 
 _wildcard = _Wildcard()
 
-_Event = Union['vgm.YM2612Port0', 'vgm.YM2612Port1']
 
+@dataclass
+class Register:
+    chan: int
+    op: int
+    param: int
+
+
+@dataclass
+class UnpackedEvent:
+    unpack: Register
+    value: int
+
+
+# Pack and unpack registers
+
+def reg_pack(reg: Register) -> int:
+    assert 0 <= reg.chan < 3
+    assert 0 <= reg.op < 4
+    assert reg.param % 0x10 == 0
+    return reg.param + (4 * reg.op) + reg.chan
+
+
+def reg_unpack(register: int) -> Register:
+    chan = register & 0x03
+    op = (register // 4) & 0x03
+    param = register & 0xF0
+    return Register(chan, op, param)
+
+
+# Map register type
+
+_SinglePortEvent = Union['vgm.YM2612Port0', 'vgm.YM2612Port1']
+_Event = Union[_SinglePortEvent, UnpackedEvent]
+
+
+def ev_unpack(e: _SinglePortEvent) -> UnpackedEvent:
+    """ Input: YM2612PortX with numeric register field
+    Output: UnpackedEvent holding unpack=Register object
+
+    Port0 maps to channels 0..2, Port1 maps to channels 3..5.
+
+    Function is passed into map_ev. """
+
+    unpack = reg_unpack(e.reg)
+
+    # YM2612 Port 1 accesses channels 3..5.
+    if isinstance(e, vgm.YM2612Port1):
+        unpack = replace(unpack, chan = unpack.chan + 3)
+
+    return UnpackedEvent(unpack, e.value)
+
+
+# Filter by register type
 
 def reg_filter(chan=_wildcard, op=_wildcard, param=_wildcard) -> \
         Callable[[_Event], bool]:
     """ Passed into filter_ev. """
-    query = (chan, op, param)
+
+    # noinspection PyTypeChecker
+    query = Register(chan, op, param)   # type: ignore
 
     def cond(e: _Event):
         return reg_unpack(e.reg) == query
 
     return cond
-
-
-def ev_unpack(e: _Event):
-    chan, op, param = reg_unpack(e.reg)
-
-    # YM2612 Port 1 accesses channels 3..5.
-    if isinstance(e, vgm.YM2612Port1):
-        chan += 3
-
-    return (chan, op, param), e.value
