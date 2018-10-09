@@ -47,18 +47,8 @@ class Pointer:
             raise TypeError('Pointer() requires bytes or bytearray (buffer API)')
 
         self.data = data
+        self.endian = endian
         self.seek(addr)
-
-        # self.bytes() raises OverlapError
-        self.u8 = self._getter_factory(8, endian, signed=False)
-        self.u16 = self._getter_factory(16, endian, signed=False)
-        self.u24 = self._getter_factory(24, endian, signed=False)
-        self.u32 = self._getter_factory(32, endian, signed=False)
-
-        self.s8 = self._getter_factory(8, endian, signed=True)
-        self.s16 = self._getter_factory(16, endian, signed=True)
-        self.s24 = self._getter_factory(24, endian, signed=True)
-        self.s32 = self._getter_factory(32, endian, signed=True)
 
     @classmethod
     def create(cls, data: bytes, endian: Endian):
@@ -126,11 +116,28 @@ class Pointer:
     def hexmagic(self, hexmagic):
         return self.magic(unhexlify(hexmagic))
 
-    def _getter_factory(self, bits, endian, signed):
+    # Integer getters
+
+    def _IntegerGetter(bits, signed):
         nbytes = bits // 8
 
-        def getter(addr: int = None):
+        def get_integer(self: 'Pointer', addr: int = None) -> int:
             data = self.bytes(nbytes, addr)
-            return int.from_bytes(data, endian, signed=signed)
+            return int.from_bytes(data, self.endian, signed=signed)
+
+        return get_integer
+
+    # The VGM file format assumes unsigned ints.
+    u8 = _IntegerGetter(8, signed=False)
+    u16 = _IntegerGetter(16, signed=False)
+    u24 = _IntegerGetter(24, signed=False)
+    u32 = _IntegerGetter(32, signed=False)
+
+    s8 = _IntegerGetter(8, signed=True)
+    s16 = _IntegerGetter(16, signed=True)
+    s24 = _IntegerGetter(24, signed=True)
+    s32 = _IntegerGetter(32, signed=True)
+
+    del _IntegerGetter
 
         return getter
