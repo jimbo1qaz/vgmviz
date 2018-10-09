@@ -10,7 +10,7 @@ setup(
     author_email='',
     description='',
     install_requires=[
-        # 'kaitaistruct',
+        'attrs',
         'numpy'
     ],
     tests_require=['pytest']

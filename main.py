@@ -1,6 +1,6 @@
 from typing import Any, List, Tuple
 
-from utils.keyword_dataclasses import dataclass, field
+import attr
 from utils.pointer import Pointer
 
 
@@ -13,12 +13,12 @@ class LinearEventList(list):
     pass
 
 
-@dataclass
+@attr.s
 class VgmFile:
     version: int = None
     nbytes: int = None
     data_addr: int = None
-    events: LinearEventList = field(default_factory=LinearEventList)
+    events: LinearEventList = attr.ib(default=attr.Factory(LinearEventList))
 
 
 def parse_vgm(path: str) -> LinearEventList:
