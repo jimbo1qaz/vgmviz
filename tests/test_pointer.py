@@ -22,7 +22,7 @@ def ptr():
     return Pointer.create(data, 'big')
 
 
-def test_unsigned(ptr: Pointer):
+def test_unsigned(ptr):
     assert ptr.addr == 0
 
     assert ptr.u8() == 0x00
@@ -32,13 +32,13 @@ def test_unsigned(ptr: Pointer):
     assert ptr.addr == 8
 
 
-def test_signed(ptr: Pointer):
+def test_signed(ptr):
     assert ptr.s32() == 0x00017e7f
     assert ptr.s24() == 0x8081fe - 0x1000000
     assert ptr.s8() == 0xff - 0x100
 
 
-def test_error(ptr: Pointer):
+def test_error(ptr):
     # Mark everything as visited, to trigger OverlapError.
     for i in range(8):
         ptr.u8()
@@ -46,12 +46,8 @@ def test_error(ptr: Pointer):
     with pytest.raises(ValueError):
         ptr.u8()
 
-    # ptr.seek(0)
-    # with pytest.raises(OverlapError):
-    #     ptr.u8()
 
-
-def test_eof(ptr: Pointer):
+def test_eof(ptr):
     ptr.seek(3)
     assert ptr.addr == 3
 
