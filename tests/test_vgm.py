@@ -1,6 +1,6 @@
 import pytest
 
-from main import PCMWriteWait, Wait4Bit
+from vgmviz.vgm import PCMWriteWait, Wait4Bit
 
 
 def test_PCMWriteWait():

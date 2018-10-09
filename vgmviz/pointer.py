@@ -1,7 +1,7 @@
 from binascii import unhexlify
 from typing import ByteString, AnyStr
 
-from util import coalesce
+from vgmviz.util import coalesce
 
 
 class MagicError(ValueError):

@@ -1,5 +1,5 @@
 import pytest
-from utils.pointer import Pointer
+from vgmviz.pointer import Pointer
 
 
 # def test_wrap():

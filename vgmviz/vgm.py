@@ -1,7 +1,7 @@
 from typing import Any, List, Tuple, Callable, Type, TypeVar
 
 from dataclasses import dataclass, field
-from utils.pointer import Pointer
+from vgmviz.pointer import Pointer
 
 
 class VgmNotImplemented(NotImplementedError):
@@ -150,7 +150,10 @@ class PSGWrite:
 # **** Add timestamps to LinearEventList ****
 
 TimedEvent = Tuple[int, Any]
-TimedEventList = List[TimedEvent]
+
+
+class TimedEventList(List[TimedEvent]):
+    pass
 
 
 def time_event_list(events: LinearEventList) -> TimedEventList:
