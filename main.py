@@ -1,4 +1,4 @@
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Callable, Type, TypeVar
 
 import attr
 from utils.pointer import Pointer
@@ -146,10 +146,7 @@ class PSGWrite:
 # **** Add timestamps to LinearEventList ****
 
 TimedEvent = Tuple[int, Any]
-
-
-class TimedEventList(List[TimedEvent]):
-    pass
+TimedEventList = List[TimedEvent]
 
 
 def time_event_list(events: LinearEventList) -> TimedEventList:
@@ -163,6 +160,20 @@ def time_event_list(events: LinearEventList) -> TimedEventList:
             time += event.delay
 
     return time_events
+
+
+T = TypeVar['T']
+
+
+# TODO unused
+def filter_ev(
+        time_events: TimedEventList,
+        cls: Type[T],
+        cond: Callable[[T], bool] = lambda e: True
+):
+    return TimedEventList(
+        e for e in time_events if isinstance(e, cls) and cond(e)
+    )
 
 
 def main():
