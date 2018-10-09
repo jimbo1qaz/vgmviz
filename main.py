@@ -1,3 +1,5 @@
+from typing import Any, List
+
 from utils.keyword_dataclasses import dataclass, field
 from utils.pointer import Pointer
 
@@ -45,40 +47,80 @@ def parse_body(ptr: Pointer, data: VgmFile):
     ev = data.events
 
     ptr.seek(data.data_addr)
-    while ptr.addr < data.nbytes:
+    while True:
+        assert ptr.addr < data.nbytes
         command = ptr.u8()
 
-        if command == 0x67:
+        # PCM
+        if command == 0x66:
+            break
+        elif command == 0x67:
             ev.append(DataBlock(ptr))
+        elif command == 0xe0:
+            ev.append(PCMSeek(ptr))
+        elif 0x80 <= command < 0x90:
+            ev.append(PCMWriteWait(command))
+        # Wait
+        elif 0x70 <= command < 0x80:
+            ev.append(Wait4Bit(command))
+        elif command == 0x61:
+            ev.append(Wait16Bit(ptr))
+        # YM2612 FM
         elif command == 0x52:
             ev.append(YM2612Port0(ptr))
         elif command == 0x53:
             ev.append(YM2612Port1(ptr))
         elif command == 0x50:
             ev.append(PSGWrite(ptr))
+
         else:
             raise VgmNotImplemented(f"Unhandled VGM command {command:#2x}")
 
 
-@dataclass
-class DataBlock:
-    typ: int
-    nbytes: int
-    data: bytes
+class IWait:
+    delay: int
 
+
+# PCM
+class DataBlock:
     def __init__(self, ptr: Pointer):
         ptr.hexmagic('66')
         self.typ = ptr.u8()
         self.nbytes = ptr.u32()
         self.data = ptr.bytes(self.nbytes)
-        print(self.nbytes)
 
 
-@dataclass
+class PCMSeek:
+    def __init__(self, ptr: Pointer):
+        self.address = ptr.u32()
+
+
+class PCMWriteWait(IWait):
+    """0x8n:
+    YM2612 port 0 address 2A write from the data bank, then wait
+    n samples; n can range from 0 to 15. Note that the wait is n,
+    NOT n+1. (Note: Written to first chip instance only.)
+    """
+    def __init__(self, command: int):
+        assert 0x80 <= command < 0x90, 'PCMWriteWait command out of range'
+        self.delay = command - 0x80
+
+
+# Wait
+class Wait4Bit(IWait):
+    """0x7n       : wait n+1 samples, n can range from 0 to 15."""
+    def __init__(self, command: int):
+        assert 0x70 <= command < 0x80, 'Wait command out of range'
+        self.delay = command - 0x70 + 1
+
+
+class Wait16Bit(IWait):
+    def __init__(self, ptr: Pointer):
+        self.delay = ptr.u16()
+
+
+# YM2612 FM
 class Write8as8:
-    reg: int
-    value: int
-
     def __init__(self, ptr: Pointer):
         self.reg = ptr.u8()
         self.value = ptr.u8()
@@ -92,13 +134,11 @@ class YM2612Port1(Write8as8):
     pass
 
 
-@dataclass
 class PSGWrite:
-    value: int
-
     def __init__(self, ptr: Pointer):
         self.value = ptr.u8()
 
 
 bell = 'data/bell.vgm'
-parse_vgm(bell)
+if __name__ == '__main__':
+    parse_vgm(bell)
