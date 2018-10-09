@@ -4,29 +4,6 @@ from typing import ByteString, Optional
 from util import coalesce
 
 
-def byte_aligned(bits):
-    assert bits % 8 == 0
-
-
-# def wrap(val, bits):
-#     val %= 2 ** bits
-#
-#     wraparound = 2 ** (bits - 1)
-#     if val >= wraparound:
-#         val -= wraparound * 2
-#
-#     return val
-
-
-# def bytes2int(in_bytes, endian, signed):
-#     return int.from_bytes(in_bytes, 'little' if endian else 'big', signed=signed)
-
-
-# def int2bytes(value: int, bits, endian=False):
-#     byte_aligned(bits)
-#     return value.to_bytes(bits // 8, 'little' if endian else 'big')
-
-
 class MagicError(ValueError):
     pass
 
