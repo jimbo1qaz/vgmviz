@@ -117,4 +117,17 @@ class Pointer:
 
     del _IntegerGetter
 
-        return getter
+    # 32-bit pointer offsets.
+    PTR_WIDTH_BYTES = 4
+
+    def offset(self, addr: int = None) -> int:
+        """
+        VGM pointers are encoded as offsets relative to the location of the pointer.
+        I'll use signed address-offsets, since I'm more worried about negative offsets
+        than >2GB VGM files.
+        """
+        addr = coalesce(addr, self.addr)
+
+        data = self.bytes(self.PTR_WIDTH_BYTES, addr)
+        offset = int.from_bytes(data, self.endian, signed=True)
+        return addr + offset

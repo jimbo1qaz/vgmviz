@@ -38,6 +38,13 @@ def test_signed(ptr):
     assert ptr.s8() == 0xff - 0x100
 
 
+def test_offset(ptr):
+    # Pointer.offset() is a signed int32, for VGM file format.
+
+    assert ptr.offset() == 0x00017e7f
+    assert ptr.offset() + 2**32 == 0x8081feff + 0x04
+
+
 def test_error(ptr):
     # Mark everything as visited, to trigger OverlapError.
     for i in range(8):
