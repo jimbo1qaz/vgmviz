@@ -1,7 +1,11 @@
 from typing import Any, List, Callable, Type, TypeVar
 
 from dataclasses import dataclass, field
+
+from vgmviz import ym2612
 from vgmviz.pointer import Pointer
+
+assert ym2612
 
 
 class VgmNotImplemented(NotImplementedError):
