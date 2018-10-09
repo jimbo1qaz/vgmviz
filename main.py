@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import Any, List, Tuple
 
 from utils.keyword_dataclasses import dataclass, field
 from utils.pointer import Pointer
@@ -21,7 +21,7 @@ class VgmFile:
     events: LinearEventList = field(default_factory=LinearEventList)
 
 
-def parse_vgm(path: str) -> VgmFile:
+def parse_vgm(path: str) -> LinearEventList:
     with open(path, 'rb') as f:
         ptr = Pointer(f.read(), 0, 'little')
 
@@ -30,7 +30,7 @@ def parse_vgm(path: str) -> VgmFile:
     parse_header(ptr, file)
     parse_body(ptr, file)
 
-    return file
+    return file.events
 
 
 def parse_header(ptr: Pointer, file: VgmFile):
@@ -139,6 +139,36 @@ class PSGWrite:
         self.value = ptr.u8()
 
 
-bell = 'data/bell.vgm'
+# **** Add timestamps to LinearEventList ****
+
+# @dataclass
+# class TimedEvent:
+#     time_frame: int     # Time (units=frames)
+#     event: Any
+TimedEvent = Tuple[int, Any]
+
+
+class TimedEventList(List[TimedEvent]):
+    pass
+
+
+def time_event_list(events: LinearEventList) -> TimedEventList:
+    time = 0
+    time_events = TimedEventList()
+
+    for event in events:
+        time_events.append((time, event))
+        if isinstance(event, IWait):
+            time += event.delay
+
+    return time_events
+
+
+def main():
+    bell = 'data/bell.vgm'
+    events = parse_vgm(bell)
+    time_events = time_event_list(events)
+
+
 if __name__ == '__main__':
-    parse_vgm(bell)
+    main()
