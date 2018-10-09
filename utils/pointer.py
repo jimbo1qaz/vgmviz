@@ -1,5 +1,5 @@
 from binascii import unhexlify
-from typing import ByteString, Optional
+from typing import ByteString, AnyStr
 
 from util import coalesce
 
@@ -90,7 +90,7 @@ class Pointer:
 
         return read
 
-    def hexmagic(self, hexmagic):
+    def hexmagic(self, hexmagic: AnyStr):
         return self.magic(unhexlify(hexmagic))
 
     # Integer getters
