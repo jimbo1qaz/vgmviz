@@ -1,4 +1,4 @@
-from typing import Any, List, Tuple, Callable, Type, TypeVar
+from typing import Any, List, Callable, Type, TypeVar
 
 from dataclasses import dataclass, field
 from vgmviz.pointer import Pointer
@@ -149,7 +149,10 @@ class PSGWrite:
 
 # **** Add timestamps to LinearEventList ****
 
-TimedEvent = Tuple[int, Any]
+@dataclass
+class TimedEvent:
+    time: int
+    event: Any
 
 
 class TimedEventList(List[TimedEvent]):
@@ -162,7 +165,7 @@ def time_event_list(events: LinearEventList) -> TimedEventList:
 
     for event in events:
         if not isinstance(event, PureWait):
-            time_events.append((time, event))
+            time_events.append(TimedEvent(time, event))
         if isinstance(event, IWait):
             time += event.delay
 
@@ -172,14 +175,21 @@ def time_event_list(events: LinearEventList) -> TimedEventList:
 T = TypeVar('T')
 
 
-# TODO unused
+def keep_type(time_events: TimedEventList, classes: List[type]) -> TimedEventList:
+    if not classes:
+        raise ValueError('empty classes')
+    return TimedEventList(
+        t_e for t_e in time_events if type(t_e.event) in classes
+    )
+
+
 def filter_ev(
         time_events: TimedEventList,
         cls: Type[T],
         cond: Callable[[T], bool] = lambda e: True
-):
+) -> TimedEventList:
     return TimedEventList(
-        e for e in time_events if isinstance(e, cls) and cond(e)
+        t_e for t_e in time_events if isinstance(t_e.event, cls) and cond(t_e.event)
     )
 
 
@@ -191,10 +201,7 @@ def main():
 
     # [time, event]
     time_events = time_event_list(events)
-    time_events = [e for e in time_events if type(e[1]) not in [
-        DataBlock, PCMSeek, PCMWriteWait,
-        PSGWrite
-    ]]
+    time_events = keep_type(time_events, [YM2612Port0, YM2612Port1])
     print(len(time_events))
     print(time_events[-20:])
 
