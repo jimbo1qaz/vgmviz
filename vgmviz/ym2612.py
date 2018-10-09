@@ -47,6 +47,6 @@ def reg_filter(chan=_wildcard, op=_wildcard, param=_wildcard) -> \
     query = (chan, op, param)
 
     def cond(e: _Event):
-        return unpack(e.reg) == query
+        return reg_unpack(e.reg) == query
 
     return cond
