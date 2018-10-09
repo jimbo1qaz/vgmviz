@@ -1,31 +1,43 @@
-# import kaitaistruct as ks
-#
-# ks.KaitaiStruct
-import numpy as np
-
-from pointer import Pointer
+from utils.keyword_dataclasses import dataclass
+from utils.pointer import Pointer
 
 bell = 'data/bell.vgm'
 
 
-def parse_vgm(path):
-    # data: np.ndarray = np.fromfile(path, np.uint8)
-    # magic: np.ndarray = data[0:4]
-    # assert magic.tobytes() == b'Vgm '
-    with open(path, 'rb') as f:
-        ptr = Pointer(f.read(), 0, 'little')
+@dataclass
+class VgmData:
+    version: int = None
+    data_addr: int = None
 
-    ptr.magic(b'Vgm ', 0)
-    version = ptr.u32(0x08)
 
-    # ym2612_clock =
-    # if version >= 0x0110:
+class VgmParser:
+    """Parser for VGM file format. Builds a list of events."""
+    def __init__(self, path: str):
+        self.path = path
+        with open(path, 'rb') as f:
+            self.ptr = Pointer(f.read(), 0, 'little')
 
-    data_addr = 0x40
-    if version >= 0x150:
-        data_addr = ptr.offset(0x34)
+        self.data = VgmData()
 
-    # Parse VGM data section
+        self.parse_header()
+        self.parse_body()
+
+    def parse_header(self):
+        ptr = self.ptr
+        data = self.data
+
+        ptr.magic(b'Vgm ', 0)
+        data.version = ptr.u32(0x08)
+
+        data.data_addr = 0x40
+        if data.version >= 0x150:
+            data.data_addr = ptr.offset(0x34)
+
+    def parse_body(self):
+        ptr = self.ptr
+        data = self.data
+
+        ptr.seek(data.data_addr)
 
 
 
