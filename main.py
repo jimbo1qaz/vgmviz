@@ -145,10 +145,6 @@ class PSGWrite:
 
 # **** Add timestamps to LinearEventList ****
 
-# @dataclass
-# class TimedEvent:
-#     time_frame: int     # Time (units=frames)
-#     event: Any
 TimedEvent = Tuple[int, Any]
 
 
@@ -171,8 +167,18 @@ def time_event_list(events: LinearEventList) -> TimedEventList:
 
 def main():
     bell = 'data/bell.vgm'
+
+    # [event]
     events = parse_vgm(bell)
+
+    # [time, event]
     time_events = time_event_list(events)
+    time_events = [e for e in time_events if type(e[1]) not in [
+        DataBlock, PCMSeek, PCMWriteWait,
+        PSGWrite
+    ]]
+    print(len(time_events))
+    print(time_events[-20:])
 
 
 if __name__ == '__main__':
