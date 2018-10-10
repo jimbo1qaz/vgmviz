@@ -14,11 +14,11 @@ T = TypeVar('T')
 # Parameters (4op per channel)
 
 DetHarm = 0x30  # 4-bit detune (sign-mag), 4-bit harmonic multiple
-Ampl = 0x40  # 7-bit oscillator amplitude, in units of -0.75dB
+Atten = 0x40  # 7-bit oscillator attenuation, in units of -0.75dB
 TrebAttack = 0x50  # 2-bit treble speed-boost... 5-bit attack rate
 AMDecay1 = 0x60  # 1-bit AM enable... 5-bit decay1 rate
 Decay2 = 0x70  # ... 5-bit decay2 rate
-KneeRelease = 0x80  # 4-bit knee amplitude (-3dB), 4-bit release rate (,*2+1)
+KneeRelease = 0x80  # 4-bit knee attenuation (*8), 4-bit release rate (,*2+1)
 SSGEnvelope = 0x90  # SSG envelope (unknown)
 
 # Parameters (1 per channel)
