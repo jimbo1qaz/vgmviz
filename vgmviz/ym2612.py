@@ -4,14 +4,21 @@ from dataclasses import dataclass, replace
 
 from vgmviz import vgm
 
-# Parameters
+# Based off documentation at https://www.smspower.org/maxim/Documents/YM2612
 
-DetHarm = 0x30  # 4-bit detune (sign-mag), 4-bit harmonic#
+# Parameters (4op per channel)
+
+DetHarm = 0x30  # 4-bit detune (sign-mag), 4-bit harmonic multiple
 Ampl = 0x40  # 7-bit oscillator amplitude, in units of -0.75dB
 TrebAttack = 0x50  # 2-bit treble speed-boost... 5-bit attack rate
 AMDecay1 = 0x60  # 1-bit AM enable... 5-bit decay1 rate
 Decay2 = 0x70  # ... 5-bit decay2 rate
 KneeRelease = 0x80  # 4-bit knee amplitude (-3dB), 4-bit release rate (,*2+1)
+SSGEnvelope = 0x90  # SSG envelope (unknown)
+
+# Parameters (1 per channel)
+BEGIN_1OP = 0xB0
+FeedbackAlgo = 0xB0  # ... 3-bit op0 feedback, 3-bit algorithm
 
 """ YM2612 register address:
 Bit field: 4param, 2op, 2chan
@@ -47,15 +54,26 @@ class UnpackedEvent:
 
 def reg_pack(reg: Register) -> int:
     assert 0 <= reg.chan < 3
-    assert 0 <= reg.op < 4
-    assert reg.param % 0x10 == 0
+
+    if reg.param >= BEGIN_1OP:
+        assert reg.op == 0
+        assert reg.param % 0x4 == 0
+    else:
+        assert 0 <= reg.op < 4
+        assert reg.param % 0x10 == 0
+
     return reg.param + (4 * reg.op) + reg.chan
 
 
 def reg_unpack(register: int) -> Register:
+    if register > BEGIN_1OP:
+        param = register & (~0x03)
+        op = 0
+    else:
+        param = register & 0xF0
+        op = (register // 4) & 0x03
     chan = register & 0x03
-    op = (register // 4) & 0x03
-    param = register & 0xF0
+
     return Register(chan, op, param)
 
 
