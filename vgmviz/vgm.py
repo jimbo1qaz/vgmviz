@@ -161,14 +161,12 @@ class TimedEvent(Generic[T]):
     event: T
 
 
-# TODO replace with variable, remove class, don't construct directly
-class TimedEventList(Generic[T], List[TimedEvent[T]]):
-    pass
+TimedEventList = List[TimedEvent[T]]
 
 
 def time_event_list(events: LinearEventList[T]) -> TimedEventList[T]:
     time = 0
-    time_events = TimedEventList()  # type: TimedEventList[T]
+    time_events: TimedEventList[T] = []
 
     for event in events:
         if not isinstance(event, PureWait):
@@ -179,14 +177,12 @@ def time_event_list(events: LinearEventList[T]) -> TimedEventList[T]:
     return time_events
 
 
-
 def keep_type(time_events: TimedEventList, classes: List[type]) -> TimedEventList:
     if not classes:
         raise ValueError('empty classes')
-    return TimedEventList(
+    return [
         t_e for t_e in time_events if type(t_e.event) in classes
-    )
-
+    ]
 
 _Condition = Callable[[T], bool]
 
@@ -196,18 +192,18 @@ def filter_ev_type(
         cls: Type[T],
         cond: _Condition = lambda e: True
 ) -> TimedEventList:
-    return TimedEventList(
+    return [
         t_e for t_e in time_events if isinstance(t_e.event, cls) and cond(t_e.event)
-    )
+    ]
 
 
 def filter_ev(time_events: TimedEventList, cond: _Condition) -> TimedEventList:
-    return TimedEventList(t_e for t_e in time_events if cond(t_e.event))
+    return [t_e for t_e in time_events if cond(t_e.event)]
 
 
 def filter_ev_time(time_events: TimedEventList, begin=float('-inf'), end=float('inf')) \
         -> TimedEventList:
-    return TimedEventList(t_e for t_e in time_events if begin <= t_e.time < end)
+    return [t_e for t_e in time_events if begin <= t_e.time < end]
 
 
 # TODO truncate_ev_time, transposes the event just before, duplicates the final event.
@@ -216,10 +212,10 @@ def map_ev(
         time_events: TimedEventList,
         func: Callable[[Any], Any]
 ) -> TimedEventList:
-    return TimedEventList(
+    return [
         TimedEvent(t_e.time, func(t_e.event))
         for t_e in time_events
-    )
+    ]
 
     pass
 
