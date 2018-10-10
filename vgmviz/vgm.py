@@ -1,4 +1,4 @@
-from typing import Any, List, Callable, Type, TypeVar
+from typing import Any, List, Callable, Type, TypeVar, Generic
 
 from dataclasses import dataclass, field
 
@@ -7,12 +7,14 @@ from vgmviz.pointer import Pointer
 
 assert ym2612
 
+T = TypeVar('T')
+
 
 class VgmNotImplemented(NotImplementedError):
     pass
 
 
-class LinearEventList(list):
+class LinearEventList(List[T]):
     """ Consists of events and wait-events. """
     pass
 
@@ -154,18 +156,19 @@ class PSGWrite:
 # **** Add timestamps to LinearEventList ****
 
 @dataclass
-class TimedEvent:
+class TimedEvent(Generic[T]):
     time: int
-    event: Any
+    event: T
 
 
-class TimedEventList(List[TimedEvent]):
+# TODO replace with variable, remove class, don't construct directly
+class TimedEventList(Generic[T], List[TimedEvent[T]]):
     pass
 
 
-def time_event_list(events: LinearEventList) -> TimedEventList:
+def time_event_list(events: LinearEventList[T]) -> TimedEventList[T]:
     time = 0
-    time_events = TimedEventList()
+    time_events = TimedEventList()  # type: TimedEventList[T]
 
     for event in events:
         if not isinstance(event, PureWait):
@@ -175,8 +178,6 @@ def time_event_list(events: LinearEventList) -> TimedEventList:
 
     return time_events
 
-
-T = TypeVar('T')
 
 
 def keep_type(time_events: TimedEventList, classes: List[type]) -> TimedEventList:
