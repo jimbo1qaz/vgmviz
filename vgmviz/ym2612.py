@@ -1,8 +1,13 @@
-from typing import Union, Callable
+import bisect
+import math
+from typing import Union, Callable, List, TypeVar, Dict, Optional
 
 from dataclasses import dataclass, replace
 
 from vgmviz import vgm
+
+T = TypeVar('T')
+
 
 # Based off documentation at https://www.smspower.org/maxim/Documents/YM2612
 
@@ -37,7 +42,7 @@ class _Wildcard:
 _wildcard = _Wildcard()
 
 
-@dataclass
+@dataclass(frozen=True, order=True)
 class Register:
     chan: int
     op: int
@@ -79,11 +84,11 @@ def reg_unpack(register: int) -> Register:
 
 # Map register type
 
-_SinglePortEvent = Union['vgm.YM2612Port0', 'vgm.YM2612Port1']
-_Event = Union[_SinglePortEvent, UnpackedEvent]
+_PackedRegEvent = Union['vgm.YM2612Port0', 'vgm.YM2612Port1']
+_Event = Union[_PackedRegEvent, UnpackedEvent]
 
 
-def ev_unpack(e: _SinglePortEvent) -> UnpackedEvent:
+def ev_unpack(e: _PackedRegEvent) -> UnpackedEvent:
     """ Input: YM2612PortX with numeric register field
     Output: UnpackedEvent holding unpack=Register object
 
@@ -101,15 +106,79 @@ def ev_unpack(e: _SinglePortEvent) -> UnpackedEvent:
 
 
 # Filter by register type
+# Note: UNUSED
 
 def reg_filter(chan=_wildcard, op=_wildcard, param=_wildcard) -> \
-        Callable[[_Event], bool]:
+        Callable[[_PackedRegEvent], bool]:
     """ Passed into filter_ev. """
 
     # noinspection PyTypeChecker
     query = Register(chan, op, param)   # type: ignore
 
-    def cond(e: _Event):
+    def cond(e: _PackedRegEvent):
         return reg_unpack(e.reg) == query
 
     return cond
+
+
+# Note: mypy doesn't support cross-module generics in a function body.
+# vgm.TimedEventList[UnpackedEvent] fails.
+TimedEventList = List['vgm.TimedEvent[T]']
+
+
+def bound_ev_time(
+        time_events: 'vgm.TimedEventList[UnpackedEvent]',
+        begin=0,
+        end=math.inf
+) -> 'TimedEventList[UnpackedEvent]':
+    """
+    Filter by time (seconds).
+    For each register ID, prepend the "previous state" at t=begin,
+    and append the "ending state" at t=end.
+    """
+
+    regs = sorted(set(t_e.event.unpack for t_e in time_events))
+    assert len(regs) < 0x100, '256+ registers, did you fail to deduplicate?'
+
+    # O(n) :(
+    times = [t_e.time for t_e in time_events]
+
+    i0 = bisect.bisect_left(times, begin)
+    i1 = bisect.bisect_left(times, end)
+
+    # Find the "previous state" before t=begin.
+    before = time_events[:i0]
+    old_reg2event = {}
+
+    for reg in regs:
+        old_reg2event[reg] = \
+            next((t_e.event for t_e in reversed(before) if t_e.event.unpack == reg),
+                 None)
+
+    # Find the "final state" at t=end.
+    during = time_events[i0:i1]
+    new_reg2event = {}
+
+    for reg in regs:
+        new_reg2event[reg] = \
+            next((t_e.event for t_e in reversed(during) if t_e.event.unpack == reg),
+                 old_reg2event[reg])
+
+    # Prepend old state, append new state.
+    if end == math.inf:
+        end = times[-1]
+
+    def retime_events(time, reg2event):
+        return [vgm.TimedEvent(time, event)
+                for event in reg2event.values()
+                if event is not None]
+
+    out: TimedEventList[UnpackedEvent] = []
+    out += retime_events(begin, old_reg2event)
+    out += during
+    out += retime_events(end, new_reg2event)
+    return out
+
+
+
+
