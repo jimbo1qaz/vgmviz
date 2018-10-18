@@ -1,6 +1,3 @@
-import copy
-import abc
-from abc import ABC
 from typing import Any, List, Callable, Type, TypeVar, Generic, Dict, ClassVar, Optional
 
 from dataclasses import dataclass, field, fields, Field
@@ -71,7 +68,7 @@ def parse_body(ptr: Pointer, file: VgmFile):
             break
 
         if command in cmd2event:
-            ev.append(cmd2event[command].decode(ptr))
+            ev.append(cmd2event[command].decode(ptr, command))
         else:
             raise VgmNotImplemented(f"Unhandled VGM command {command:#2x}")
 
@@ -82,10 +79,10 @@ Command = int   # int8
 cmd2event: Dict[Command, Type['Event']] = {}
 
 
-def register_cmd2event(*commands: int, command_matters: bool = False) -> Callable:
+def register_cmd2event(*commands: int) -> Callable:
     """
     Decoding lookup: cmd2event[commands] = event.
-    Encoding lookup: event.command = commands[0].
+    Encoding lookup: event.base_command = commands[0].
     """
 
     if len(commands) == 0:
@@ -95,72 +92,141 @@ def register_cmd2event(*commands: int, command_matters: bool = False) -> Callabl
         if not issubclass(event_cls, Event):
             raise TypeError(f'{event_cls} must be Event')
 
+        event_cls.base_command = commands[0]
+        event_cls.is_multiple_commands = (len(commands) > 1)
+
         for command in commands:
             cmd2event[command] = event_cls
-        event_cls.command = commands[0]
-        event_cls.command_matters = command_matters
 
-        return event_cls
+        return dataclass(event_cls)
     return _register_event
+
+
+# @dataclass
+class Event:
+    base_command: ClassVar[Command]
+
+    # A property which is defined in subclasses where base_command==True.
+    command: ClassVar[property]
+
+    # Some wait events are represented by multiple commands with 4 leading bits.
+    # The 4 trailing bits serve as a duration parameter.
+    is_multiple_commands: ClassVar[bool]
+
+    """
+    Supporting parametric events is hard.
+    
+    - decode() is passed a `ptr` pointing AFTER command ID.
+    It is also passed `command_offset`
+    (used to initialize event fields, *not* saved permanently).
+        - A field can be declared `x: int = meta(parameterize=lambda x: x + 1)`
+        to initialize `x = command_offset + 1`.
+    - decode() does not read command ID from `ptr`.
+
+    - encode() checks: If `is_multiple_commands` is true,
+    it reads the `command` property, which calculates command from event fields.
+    - encode() writes command ID to `wrt`.
+    
+    - TODO: encode() ignores fields `x` targeted by `meta(length=x)`
+    and recomputes them when writing.
+        - Only useful for binary blob editing.
+        I don't need it in the foreseeable future.
+    
+    - TODO: actually define `command` on parametric commands.
+        - I do not expect to encode() them.
+    
+    decode is a classmethod but works well as an independent function.
+    encode is a instance method.
+    """
+
+    @classmethod
+    def decode(cls, ptr: Pointer, command: Command) -> 'Event':
+        command_offset = command - cls.base_command
+        kwargs = {}
+
+        for f in fields(cls):  # type: Field
+            try:
+                meta = get_meta(f)
+            except KeyError:
+                raise TypeError(f'broken type {cls}: field {f.name} missing metadata')
+            ptr_args = []
+
+            if meta.parameterize:
+                if not cls.is_multiple_commands:
+                    raise ValueError(
+                        f'non-parametric {cls} cannot have parametric field {f.name}')
+                kwargs[f.name] = meta.parameterize(command_offset)
+
+            elif meta.method:
+                # Contrived example: ptr.bytes_(length, address)
+                if meta.length:  # length
+                    length_val = kwargs[meta.length]
+                    ptr_args.append(length_val)
+                if meta.arg:  # optional: address
+                    ptr_args.append(meta.arg)
+
+                kwargs[f.name] = getattr(ptr, meta.method)(*ptr_args)
+            else:
+                raise ValueError(
+                    f'cannot decode event {cls}: field {f.name} has empty metadata')
+
+        return cls(**kwargs)
+
+    # NOT classmethod
+    def encode(self, wrt: Writer) -> None:
+        f: Field
+
+        if self.is_multiple_commands:
+            command = self.command
+        else:
+            command = self.base_command
+
+        # Write command ID.
+        wrt.u8(command)
+
+        for f in fields(self):
+            meta = get_meta(f)
+
+            value = getattr(self, f.name)
+            write_args = [value]
+
+            # Do not write fields which were read from the command ID.
+            if meta.parameterize:
+                continue
+
+            # Write fields which were read from command parameters.
+            getattr(wrt, meta.method)(*write_args)
+
+
+@dataclass
+class FieldMeta:
+    # Either: call ptr.method to read/write field
+    method: str = None  # Method called to read/write
+    arg: Optional = None  # Reading the field needs parameters (eg. magic numbers)
+    length: Optional = None  # Reading the field depends on another field
+
+    # Or: determine field from `command - base_command`
+    parameterize: Callable[[int], int] = None
+
+    def __post_init__(self):
+        if not (self.method or self.parameterize):
+            raise ValueError(
+                'Invalid metadata, must supply one of [method, parameterize]')
+
+        if self.method and self.parameterize:
+            raise ValueError(
+                'Invalid metadata, cannot supply multiple of [method, parameterize]')
 
 
 def meta(*args, **kwargs) -> Field:
     return field(metadata={
         'struct_field':
-            StructField(*args, **kwargs)
+            FieldMeta(*args, **kwargs)
     })
 
 
-def get_meta(f: Field) -> 'StructField':
+def get_meta(f: Field) -> 'FieldMeta':
     return f.metadata['struct_field']
-
-
-@dataclass
-class StructField:
-    method: str
-    arg: Optional = None
-    read_depends: Optional = None
-
-
-@dataclass
-class Event(ABC):
-    command: ClassVar[Command]
-    command_matters: bool
-
-    @classmethod
-    def decode(cls, ptr: Pointer) -> 'Event':
-        kwargs = {}
-
-        f: Field
-        for f in fields(cls):
-            meta = get_meta(f)
-            ptr_args = []
-
-            # Example: ptr.bytes_(length, address)
-            if meta.read_depends:   # length
-                ptr_args.append(kwargs[meta.read_depends])
-            if meta.arg:            # optional: address
-                ptr_args.append(meta.arg)
-
-            kwargs[f.name] = getattr(ptr, meta.method)(*ptr_args)
-
-        return cls(**kwargs)
-
-    @classmethod
-    def _eat_command(cls, ptr: Pointer) -> None:
-        assert cls.command == ptr.u8()
-
-    def encode(self, wrt: Writer) -> None:
-        f: Field
-        for f in fields(self):
-            meta = get_meta(f)
-            wrt_args = [getattr(self, f.name)]
-
-            # FIXME
-            # if meta.arg:
-            #     wrt_args.append()
-
-            getattr(wrt, meta.method)(*wrt_args)
 
 
 # Event implementations
@@ -175,45 +241,37 @@ class PureWait(IWait):
 
 # PCM
 @register_cmd2event(0x67)
-@dataclass
 class DataBlock(Event):
     magic: bytes = meta('hexmagic', '66')
     typ: int = meta('u8')
     nbytes: int = meta('u32')
-    file: bytes = meta('bytes_', read_depends='nbytes')
+    file: bytes = meta('bytes_', length='nbytes')
 
 
 @register_cmd2event(0xE0)
-@dataclass
 class PCMSeek(Event):
     address: int = meta('u32')
 
 
-@register_cmd2event(*range(0x80, 0x90), command_matters=True)
-@dataclass
+@register_cmd2event(*range(0x80, 0x90))
 class PCMWriteWait(IWait):
     """0x8n:
-    YM2612 port 0 address 2A write from the file bank, then wait
-    n samples; n can range from 0 to 15. Note that the wait is n,
-    NOT n+1. (Note: Written to first chip instance only.)
+    YM2612 port 0 address 2A write from the file bank, then wait n samples;
+    n can range from 0 to 15. Note that the wait is n, NOT n+1.
     """
-    def __init__(self, command: int) -> None:
-        assert 0x80 <= command < 0x90, 'PCMWriteWait command out of range'
-        self.delay = command - 0x80
+    delay: int = meta(parameterize=lambda x: x)
 
 
 # Wait
 @register_cmd2event(*range(0x70, 0x80))
-@dataclass
 class Wait4Bit(PureWait):
-    """0x7n       : wait n+1 samples, n can range from 0 to 15."""
-    def __init__(self, command: int) -> None:
-        assert 0x70 <= command < 0x80, 'Wait command out of range'
-        self.delay = command - 0x70 + 1
+    """0x7n:
+    wait n+1 samples, n can range from 0 to 15.
+    """
+    delay: int = meta(parameterize=lambda x: x + 1)
 
 
 @register_cmd2event(0x61)
-@dataclass
 class Wait16Bit(PureWait):
     delay: int = meta('u16')
 
@@ -298,6 +356,8 @@ def filter_ev_type(
         cls: Type[T],
         cond: _Condition = lambda e: True
 ) -> TimedEventList:
+
+    # noinspection PyTypeHints
     return [
         t_e for t_e in time_events if isinstance(t_e.event, cls) and cond(t_e.event)
     ]
