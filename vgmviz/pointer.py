@@ -1,5 +1,6 @@
+import io
 from binascii import unhexlify
-from typing import ByteString, AnyStr
+from typing import ByteString, AnyStr, IO
 
 from vgmviz.util import coalesce
 
@@ -80,7 +81,7 @@ class Pointer:
 
         return out
 
-    def magic(self, magic, addr: int = None):
+    def magic(self, magic, addr: int = None) -> bytes:
         """ Assert the existence of magic constants. """
         pos = self.addr
 
@@ -90,7 +91,7 @@ class Pointer:
 
         return read
 
-    def hexmagic(self, hexmagic: AnyStr):
+    def hexmagic(self, hexmagic: AnyStr) -> bytes:
         return self.magic(unhexlify(hexmagic))
 
     # Integer getters
@@ -130,3 +131,66 @@ class Pointer:
 
         offset = self.PTR_GETTER(addr)
         return addr + offset
+
+
+class Writer:
+    file: io.BytesIO
+
+    @property
+    def addr(self):
+        return self.file.tell()
+
+    def __init__(self,
+                 file: IO[bytes],
+                 endian: Endian) -> None:
+
+        self.file = file
+        self.endian = endian
+
+        def _IntegerSetter(bits, signed):
+            nbytes = bits // 8
+
+            def set_integer(value: int, addr: int = None) -> None:
+                data = value.to_bytes(nbytes, self.endian, signed=signed)
+                self.bytes_(data, addr)
+
+            return set_integer
+
+        self.u8 = _IntegerSetter(8, signed=False)
+        self.u16 = _IntegerSetter(16, signed=False)
+        self.u24 = _IntegerSetter(24, signed=False)
+        self.u32 = _IntegerSetter(32, signed=False)
+
+        self.s8 = _IntegerSetter(8, signed=True)
+        self.s16 = _IntegerSetter(16, signed=True)
+        self.s24 = _IntegerSetter(24, signed=True)
+        self.s32 = _IntegerSetter(32, signed=True)
+
+        self.PTR_SETTER = self.s32
+
+    @classmethod
+    def create(cls, endian: Endian):
+        return cls(file=io.BytesIO(),
+                   endian=endian)
+
+    def seek(self, addr: int):
+        return self.file.seek(addr)
+
+    def seek_rel(self, offset):
+        return self.file.seek(offset, io.SEEK_CUR)
+
+    # **** WRITE ****
+
+    def bytes_(self, data: bytes, addr: int = None) -> None:
+        if addr is not None:
+            self.seek(addr)
+        self.file.write(data)
+
+    def hexmagic(self, hexmagic: AnyStr):
+        self.bytes_(unhexlify(hexmagic))
+
+    def offset(self, star: int, amp: int = None) -> None:
+        amp = coalesce(amp, self.addr)
+
+        offset = star - amp
+        self.PTR_SETTER(offset, amp)
