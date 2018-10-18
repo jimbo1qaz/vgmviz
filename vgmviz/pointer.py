@@ -118,7 +118,7 @@ class Pointer:
     del _IntegerGetter
 
     # 32-bit pointer offsets.
-    PTR_WIDTH_BYTES = 4
+    PTR_GETTER = s32
 
     def offset(self, addr: int = None) -> int:
         """
@@ -128,6 +128,5 @@ class Pointer:
         """
         addr = coalesce(addr, self.addr)
 
-        data = self.bytes_(self.PTR_WIDTH_BYTES, addr)
-        offset = int.from_bytes(data, self.endian, signed=True)
+        offset = self.PTR_GETTER(addr)
         return addr + offset
