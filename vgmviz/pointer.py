@@ -186,11 +186,18 @@ class Writer:
             self.seek(addr)
         self.file.write(data)
 
+    magic = bytes_
+
     def hexmagic(self, hexmagic: AnyStr):
-        self.bytes_(unhexlify(hexmagic))
+        self.magic(unhexlify(hexmagic))
 
-    def offset(self, star: int, amp: int = None) -> None:
-        amp = coalesce(amp, self.addr)
+    def offset(self, star: int, addr: int = None) -> None:
+        """
+        Write an integer offset field to a file stream.
+        :param star: Destination address (absolute).
+        :param addr: [optional] Seek location.
+        """
+        addr = coalesce(addr, self.addr)
 
-        offset = star - amp
-        self.PTR_SETTER(offset, amp)
+        offset = star - addr
+        self.PTR_SETTER(offset, addr)
