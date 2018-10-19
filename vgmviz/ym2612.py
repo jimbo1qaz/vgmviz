@@ -105,6 +105,20 @@ def ev_unpack(e: _PackedRegEvent) -> UnpackedEvent:
     return UnpackedEvent(unpack, e.value)
 
 
+def ev_pack(e: UnpackedEvent) -> _PackedRegEvent:
+    unpack = e.unpack
+
+    cls = vgm.YM2612Port0
+    if unpack.chan >= 3:
+        cls = vgm.YM2612Port1
+        unpack = replace(unpack, chan=unpack.chan-3)
+
+    reg = reg_pack(unpack)
+
+    # noinspection PyArgumentList
+    return cls(reg, e.value)
+
+
 # Filter by register type
 # Note: UNUSED
 
