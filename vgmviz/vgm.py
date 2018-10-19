@@ -1,4 +1,4 @@
-from typing import Any, List, Callable, Type, TypeVar, Generic
+from typing import Any, List, Callable, Type, TypeVar
 
 from dataclasses import dataclass, field
 
@@ -15,9 +15,7 @@ class VgmNotImplemented(NotImplementedError):
     pass
 
 
-class LinearEventList(List[T]):
-    """ Consists of events and wait-events. """
-    pass
+LinearEventList = List[EventStruct]  # Consists of events and wait-events.
 
 
 @dataclass
@@ -147,17 +145,17 @@ class PSGWrite(EventStruct):
 # **** Add timestamps to LinearEventList ****
 
 @dataclass
-class TimedEvent(Generic[T]):
+class TimedEvent:
     time: int
-    event: T
+    event: EventStruct
 
 
-TimedEventList = List[TimedEvent[T]]
+TimedEventList = List[TimedEvent]
 
 
-def time_event_list(events: LinearEventList[T]) -> TimedEventList[T]:
+def time_event_list(events: LinearEventList) -> TimedEventList:
     time = 0
-    time_events: TimedEventList[T] = []
+    time_events: TimedEventList = []
 
     for event in events:
         if not isinstance(event, PureWait):
@@ -168,11 +166,11 @@ def time_event_list(events: LinearEventList[T]) -> TimedEventList[T]:
     return time_events
 
 
-# def wait_event_list(time_events: TimedEventList[T]) -> LinearEventList[T]:
+# def wait_event_list(time_events: TimedEventList) -> LinearEventList:
 #     """ Converts a timed event list to a regular event list.
 #     Only Wait16Bit will be used. All PCMWriteWait events will have duration 0. """
 #     prev_time = 0
-#     events: LinearEventList[T] = []
+#     events: LinearEventList = []
 #
 #     for time, event in time_events:
 #         if not isinstance(event, PureWait):
@@ -217,8 +215,6 @@ def filter_ev_time(time_events: TimedEventList, begin=float('-inf'), end=float('
         -> TimedEventList:
     return [t_e for t_e in time_events if begin <= t_e.time < end]
 
-
-# TODO truncate_ev_time, transposes the event just before, duplicates the final event.
 
 def map_ev(
         time_events: TimedEventList,
