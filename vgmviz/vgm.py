@@ -1,9 +1,10 @@
 from typing import Any, List, Callable, Type, TypeVar
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from vgmviz import ym2612
-from vgmviz.datastruct import EventStruct, cmd2event, register_cmd2event, meta
+from vgmviz.datastruct import DataStruct, EventStruct, cmd2event, register_cmd2event, \
+    meta
 from vgmviz.pointer import Pointer, Writer
 
 assert ym2612
@@ -18,15 +19,8 @@ class VgmNotImplemented(NotImplementedError):
 LinearEventList = List[EventStruct]  # Consists of events and wait-events.
 
 
-@dataclass
-class VgmFile:
-    nbytes: int
-    version: int
-    data_addr: int
-    events: LinearEventList = field(default_factory=LinearEventList)
-
-
 ENDIAN = 'little'
+
 
 # Parse VGM
 
@@ -34,44 +28,86 @@ def parse_vgm(path: str) -> LinearEventList:
     with open(path, 'rb') as f:
         ptr = Pointer(f.read(), 0, ENDIAN)
 
-    file = parse_header(ptr)
-    parse_body(ptr, file)
-
-    return file.events
-
-
-def parse_header(ptr: Pointer) -> VgmFile:
-    ptr.magic(b'Vgm ', 0x00)
-    nbytes = ptr.offset(0x04)
-    version = ptr.u32(0x08)
-
-    data_addr = 0x40
-    if version >= 0x150:
-        data_addr = ptr.offset(0x34)
-
-    return VgmFile(
-        nbytes=nbytes,
-        version=version,
-        data_addr=data_addr
-    )
+    header = VgmHeader.decode(ptr)
+    events = parse_body(ptr, header)
+    return events
 
 
-def parse_body(ptr: Pointer, file: VgmFile):
-    ev = file.events
+@dataclass
+class VgmHeader(DataStruct):
+    nbytes: int = meta('offset', addr=0x04)
+    version: int = meta('u32', addr=0x08)
+    nsamp: int = meta('u32', addr=0x18)
 
-    ptr.seek(file.data_addr)
+    # default arguments
+    data_addr: int = meta('offset', addr=0x34)
+
+    # magic values become default arguments
+    magic: bytes = meta('magic', arg=b'Vgm ', addr=0x00)
+
+    @classmethod
+    def decode(cls, ptr: Pointer) -> 'VgmHeader':
+        # do I also have to call super().decode in superclass? Maybe.
+        obj: VgmHeader = super().decode(ptr)
+
+        if obj.version < 0x150:
+            obj.data_addr = 0x40
+
+        return obj
+
+
+def parse_body(ptr: Pointer, header: VgmHeader) -> LinearEventList:
+    events: LinearEventList = []
+
+    ptr.seek(header.data_addr)
     while True:
-        assert ptr.addr < file.nbytes
+        assert ptr.addr < header.nbytes
         command = ptr.u8()
 
-        # PCM
         if command == 0x66:
+            # assertion fails
+            # assert ptr.addr == header.nbytes, \
+            #     f"ptr.addr={ptr.addr} doesn't match header.nbytes={header.nbytes}"
             break
 
         if command in cmd2event:
-            ev.append(cmd2event[command].decode(ptr, command))
+            events.append(cmd2event[command].decode(ptr, command))
         else:
             raise VgmNotImplemented(f"Unhandled VGM command {command:#2x}")
+
+    return events
+
+
+# Write VGM
+
+VGM_VERSION = 0x150
+
+
+def write_vgm(path: str, events: LinearEventList) -> None:
+    with open(path, 'wb') as f:
+        wrt = Writer(f, ENDIAN)
+
+        data_addr = 0x40
+
+        # Write body
+        wrt.seek(data_addr)
+
+        nsamp = 0
+        for event in events:
+            event.encode(wrt)
+            if isinstance(event, IWait):
+                nsamp += event.delay
+
+        # Write header
+        nbytes = wrt.addr
+        header = VgmHeader(
+            nbytes=nbytes,
+            version=VGM_VERSION,
+            nsamp=nsamp,
+            data_addr=data_addr,
+        )
+        header.encode(wrt)
+
 
 # Event implementations
 
@@ -191,6 +227,7 @@ def keep_type(time_events: TimedEventList, classes: List[type]) -> TimedEventLis
     return [
         t_e for t_e in time_events if type(t_e.event) in classes
     ]
+
 
 _Condition = Callable[[T], bool]
 

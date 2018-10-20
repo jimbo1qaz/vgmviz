@@ -11,21 +11,32 @@ _Kwargs = Dict[str, Any]
 
 #### DataStruct field definnitions
 
+_METADATA_KEY = 'struct_field'
+
+
 def meta(*args, **kwargs) -> Field:
-    return field(metadata={
-        'struct_field':
-            FieldMeta(*args, **kwargs)
-    })
+    metadata = FieldMeta(*args, **kwargs)
+
+    field_kwargs = {}
+    if metadata.method == 'magic':
+        field_kwargs['default'] = metadata.arg
+
+    return field(metadata={_METADATA_KEY: metadata}, **field_kwargs)
 
 
-def _get_meta(f: Field) -> 'FieldMeta':
-    return f.metadata['struct_field']
+# Unused
+# def bare_field(*args, **kwargs) -> Field:
+#     return field(*args, **kwargs, metadata={_METADATA_KEY: None})
+
+
+def _get_meta(f: Field) -> 'Optional[FieldMeta]':
+    return f.metadata[_METADATA_KEY]
 
 
 @dataclass
 class FieldMeta:
     # Either: call ptr.method to read/write field
-    method: str = None  # Method called to read/write
+    method: Optional[str] = None  # Method called to read/write
     arg: Optional = None  # Reading the field needs parameters (eg. magic numbers)
     length: Optional[str] = None  # Reading the field depends on another field
     addr: Optional[int] = None  # Read *and* write the field at a fixed address
@@ -53,7 +64,7 @@ class DataStruct:
         kwargs: _Kwargs = {}
 
         for f in fields(cls):  # type: Field
-            kwargs[f.name] = _struct_read(cls, ptr, f, kwargs, 0)
+            _struct_read(cls, ptr, f, kwargs, 0)
 
         # noinspection PyArgumentList
         return cls(**kwargs)
@@ -130,7 +141,7 @@ class EventStruct:
         kwargs = {}
 
         for f in fields(cls):  # type: Field
-            kwargs[f.name] = _struct_read(cls, ptr, f, kwargs, command_offset)
+            _struct_read(cls, ptr, f, kwargs, command_offset)
 
         # noinspection PyArgumentList
         return cls(**kwargs)
@@ -162,17 +173,21 @@ def _struct_read(
         f: Field,
         kwargs: _Kwargs,
         command_offset: Optional[int]
-):
+) -> None:
     try:
         metadata = _get_meta(f)
     except KeyError:
         raise ValueError(f'broken type {cls}: field {f.name} missing metadata')
 
+    # bare_field() (unused and commented-out) produces metadata=None.
+    if metadata is None:
+        return
+
     if metadata.parameterize:
         if not getattr(cls, 'is_multiple_commands', None):
             raise ValueError(
                 f'non-parametric {cls} cannot have parametric field {f.name}')
-        return metadata.parameterize(command_offset)
+        kwargs[f.name] = metadata.parameterize(command_offset)
 
     elif metadata.method:
         ptr_args = []
@@ -186,7 +201,7 @@ def _struct_read(
         if metadata.addr is not None:
             ptr_kwargs['addr'] = metadata.addr
 
-        return getattr(ptr, metadata.method)(*ptr_args, **ptr_kwargs)
+        kwargs[f.name] = getattr(ptr, metadata.method)(*ptr_args, **ptr_kwargs)
 
     else:
         raise ValueError(
