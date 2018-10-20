@@ -1,13 +1,12 @@
-from typing import Any, List, Callable, Type, TypeVar
+from typing import Any, List, Callable, Type, TypeVar, Tuple
 
+import dataclasses
 from dataclasses import dataclass
 
-from vgmviz import ym2612
 from vgmviz.datastruct import DataStruct, EventStruct, cmd2event, register_cmd2event, \
     meta
 from vgmviz.pointer import Pointer, Writer
 
-assert ym2612
 
 T = TypeVar('T', bound='Event')
 
@@ -24,13 +23,13 @@ ENDIAN = 'little'
 
 # Parse VGM
 
-def parse_vgm(path: str) -> LinearEventList:
+def parse_vgm(path: str) -> Tuple['VgmHeader', LinearEventList]:
     with open(path, 'rb') as f:
         ptr = Pointer(f.read(), 0, ENDIAN)
 
     header = VgmHeader.decode(ptr)
     events = parse_body(ptr, header)
-    return events
+    return header, events
 
 
 @dataclass
@@ -38,6 +37,8 @@ class VgmHeader(DataStruct):
     nbytes: int = meta('offset', addr=0x04)
     version: int = meta('u32', addr=0x08)
     nsamp: int = meta('u32', addr=0x18)
+
+    ym2612_clock: int = meta('u32', addr=0x2C)
 
     # default arguments
     data_addr: int = meta('offset', addr=0x34)
@@ -81,9 +82,15 @@ def parse_body(ptr: Pointer, header: VgmHeader) -> LinearEventList:
 # Write VGM
 
 VGM_VERSION = 0x150
+YM2612_CLOCK = 7600489  # PAL clock rate
 
 
-def write_vgm(path: str, events: LinearEventList) -> None:
+def write_vgm(
+        path: str,
+        events: LinearEventList,
+        orig_header: VgmHeader = None,
+        ym2612_clock: int = None
+) -> None:
     with open(path, 'wb') as f:
         wrt = Writer(f, ENDIAN)
 
@@ -104,8 +111,19 @@ def write_vgm(path: str, events: LinearEventList) -> None:
             nbytes=nbytes,
             version=VGM_VERSION,
             nsamp=nsamp,
+            ym2612_clock=YM2612_CLOCK,
             data_addr=data_addr,
         )
+
+        if orig_header:
+            header = dataclasses.replace(
+                header,
+                ym2612_clock=orig_header.ym2612_clock,
+            )
+
+        if ym2612_clock:
+            header.ym2612_clock = ym2612_clock
+
         header.encode(wrt)
 
 
