@@ -19,7 +19,7 @@ LinearEventList = List[EventStruct]  # Consists of events and wait-events.
 
 
 ENDIAN = 'little'
-
+EVENT_TERMINATOR = 0x66
 
 # Parse VGM
 
@@ -65,7 +65,7 @@ def parse_body(ptr: Pointer, header: VgmHeader) -> LinearEventList:
         assert ptr.addr < header.nbytes
         command = ptr.u8()
 
-        if command == 0x66:
+        if command == EVENT_TERMINATOR:
             # assertion fails
             # assert ptr.addr == header.nbytes, \
             #     f"ptr.addr={ptr.addr} doesn't match header.nbytes={header.nbytes}"
@@ -104,6 +104,7 @@ def write_vgm(
             event.encode(wrt)
             if isinstance(event, IWait):
                 nsamp += event.delay
+        wrt.u8(EVENT_TERMINATOR)
 
         # Write header
         nbytes = wrt.addr
