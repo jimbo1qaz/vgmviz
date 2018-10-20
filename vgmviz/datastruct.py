@@ -5,8 +5,8 @@ from dataclasses import fields, Field, dataclass, field
 from vgmviz.pointer import Pointer, Writer
 
 
-Args = List[Any]
-Kwargs = Dict[str, Any]
+_Args = List[Any]
+_Kwargs = Dict[str, Any]
 
 
 #### DataStruct field definnitions
@@ -18,7 +18,7 @@ def meta(*args, **kwargs) -> Field:
     })
 
 
-def get_meta(f: Field) -> 'FieldMeta':
+def _get_meta(f: Field) -> 'FieldMeta':
     return f.metadata['struct_field']
 
 
@@ -50,10 +50,10 @@ class DataStruct:
     """ Dataclass representing a struct. """
     @classmethod
     def decode(cls, ptr: Pointer) -> 'DataStruct':
-        kwargs: Kwargs = {}
+        kwargs: _Kwargs = {}
 
         for f in fields(cls):  # type: Field
-            kwargs[f.name] = struct_read(cls, ptr, f, kwargs, 0)
+            kwargs[f.name] = _struct_read(cls, ptr, f, kwargs, 0)
 
         # noinspection PyArgumentList
         return cls(**kwargs)
@@ -62,7 +62,7 @@ class DataStruct:
         f: Field
         for f in fields(self):
             value = getattr(self, f.name)
-            struct_write(self, wrt, value, f)
+            _struct_write(self, wrt, value, f)
 
 
 #### EventStruct (special-case supporting command ID)
@@ -130,7 +130,7 @@ class EventStruct:
         kwargs = {}
 
         for f in fields(cls):  # type: Field
-            kwargs[f.name] = struct_read(cls, ptr, f, kwargs, command_offset)
+            kwargs[f.name] = _struct_read(cls, ptr, f, kwargs, command_offset)
 
         # noinspection PyArgumentList
         return cls(**kwargs)
@@ -148,23 +148,23 @@ class EventStruct:
         f: Field
         for f in fields(self):
             value = getattr(self, f.name)
-            struct_write(self, wrt, value, f)
+            _struct_write(self, wrt, value, f)
 
 
 #### Struct field operations
 
-AnyStruct = Union[DataStruct, EventStruct]
+_AnyStruct = Union[DataStruct, EventStruct]
 
 
-def struct_read(
-        cls: Type[AnyStruct],
+def _struct_read(
+        cls: Type[_AnyStruct],
         ptr: Pointer,
         f: Field,
-        kwargs: Kwargs,
+        kwargs: _Kwargs,
         command_offset: Optional[int]
 ):
     try:
-        metadata = get_meta(f)
+        metadata = _get_meta(f)
     except KeyError:
         raise ValueError(f'broken type {cls}: field {f.name} missing metadata')
 
@@ -193,10 +193,10 @@ def struct_read(
             f'cannot decode event {cls}: field {f.name} has empty metadata')
 
 
-def struct_write(obj: AnyStruct, wrt: Writer, value: Any, f: Field) -> None:
+def _struct_write(obj: _AnyStruct, wrt: Writer, value: Any, f: Field) -> None:
     cls = type(obj)
     try:
-        metadata = get_meta(f)
+        metadata = _get_meta(f)
     except KeyError:
         raise TypeError(f'broken type {cls}: field {f.name} missing metadata')
 
