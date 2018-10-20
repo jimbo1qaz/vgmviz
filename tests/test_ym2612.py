@@ -1,17 +1,17 @@
-from vgmviz.ym2612 import reg_pack, reg_unpack
+from vgmviz.ym2612 import reg_pack, reg_unpack, Register
 
 
 def test_reg_pack2unpack():
     for param in range(0x30, 0x80+1, 0x10):
         for chan in range(3):
             for op in range(4):
-                tup_in = chan, op, param
+                unpack = Register(chan, op, param)
 
-                reg = reg_pack(*tup_in)
+                reg = reg_pack(unpack)
                 assert isinstance(reg, int), f'reg_pack returned {reg} not int'
 
-                tup_out = reg_unpack(reg)
-                assert tup_out == tup_in, f'Input {tup_in} != {tup_out}'
+                unpack_out = reg_unpack(reg)
+                assert unpack_out == unpack, f'Input {unpack} != {unpack_out}'
 
 
 # TODO def test_reg_filter():

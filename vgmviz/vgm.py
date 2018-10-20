@@ -282,20 +282,3 @@ def map_ev(
     ]
 
     pass
-
-
-def main():
-    bell = 'file/bell.vgm'
-
-    # [event]
-    events = parse_vgm(bell)
-
-    # [time, event]
-    time_events = time_event_list(events)
-    time_events = keep_type(time_events, [YM2612Port0, YM2612Port1])
-    print(len(time_events))
-    print(time_events[-20:])
-
-
-if __name__ == '__main__':
-    main()

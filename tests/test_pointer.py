@@ -1,17 +1,7 @@
+import io
+
 import pytest
-from vgmviz.pointer import Pointer
-
-
-# def test_wrap():
-#     assert wrap(0, 8) == 0
-#     assert wrap(1, 8) == 1
-#     assert wrap(128, 8) == -128
-#     assert wrap(129, 8) == -127
-#
-#     assert wrap(0, 16) == 0
-#     assert wrap(1, 16) == 1
-#     assert wrap(0x8000, 16) == -0x8000
-#     assert wrap(0x8001, 16) == -0x7fff
+from vgmviz.pointer import Pointer, Writer
 
 
 @pytest.fixture
@@ -20,6 +10,11 @@ def ptr():
     # visited = [Visit.NONE] * len(data)  # zzzz: bad API
 
     return Pointer.create(data, 'big')
+
+
+@pytest.fixture
+def wrt():
+    return Writer(io.BytesIO(), 'big')
 
 
 def test_unsigned(ptr):
@@ -43,6 +38,8 @@ def test_offset(ptr):
 
     assert ptr.offset() == 0x00017e7f
     assert ptr.offset() + 2**32 == 0x8081feff + 0x04
+
+    assert ptr.offset(0) == 0x00017e7f
 
 
 def test_error(ptr):
@@ -76,3 +73,28 @@ def test_eof(ptr):
     ptr.s8()
     with pytest.raises(ValueError):
         ptr.s8()
+
+
+# Writer tests
+
+def test_write_offset(wrt):
+    # Pointer.offset() is a signed int32, for VGM file format.
+
+    def buf():
+        return bytes(wrt.file.getbuffer())
+
+    wrt.offset(0)
+    assert buf() == b'\x00\x00\x00\x00'
+
+    wrt.offset(0)
+    assert buf()[4:] == b'\xFF\xFF\xFF\xFC'
+
+    # wrt.file.seek(0)
+    # wrt.file.truncate(0)
+    #
+
+    wrt.offset(0x100, addr=0)
+    assert b'\x00\x00\x01\x00' == buf()[:4]
+
+    wrt.offset(0x180, addr=0x100)
+    assert b'\x00\x00\x00\x80' == buf()[0x100:]
