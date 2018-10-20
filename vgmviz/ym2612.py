@@ -1,10 +1,12 @@
 import bisect
+import functools
 import math
-from typing import Union, Callable, List, TypeVar, Dict, Optional
+from typing import Union, Callable, List, TypeVar
 
 from dataclasses import dataclass, replace
 
 from vgmviz import vgm
+from vgmviz.datastruct import EventStruct
 
 T = TypeVar('T')
 
@@ -82,13 +84,23 @@ def reg_unpack(register: int) -> Register:
     return Register(chan, op, param)
 
 
-# Map register type
+# Packing and unpacking YM2612 registers
 
 _PackedRegEvent = Union['vgm.YM2612Port0', 'vgm.YM2612Port1']
 _Event = Union[_PackedRegEvent, UnpackedEvent]
 
 
-def ev_unpack(e: _PackedRegEvent) -> UnpackedEvent:
+# Unpack port/register to struct
+
+@functools.singledispatch
+def ev_unpack(e: EventStruct) -> EventStruct:
+    return e
+
+
+# Matches definition of _PackedRegEvent.
+@ev_unpack.register(vgm.YM2612Port0)
+@ev_unpack.register(vgm.YM2612Port1)
+def _(e) -> UnpackedEvent:
     """ Input: YM2612PortX with numeric register field
     Output: UnpackedEvent holding unpack=Register object
 
@@ -105,7 +117,15 @@ def ev_unpack(e: _PackedRegEvent) -> UnpackedEvent:
     return UnpackedEvent(unpack, e.value)
 
 
-def ev_pack(e: UnpackedEvent) -> _PackedRegEvent:
+# Pack struct to port/register
+
+@functools.singledispatch
+def ev_pack(e: EventStruct) -> EventStruct:
+    return e
+
+
+@ev_pack.register(UnpackedEvent)
+def _(e) -> _PackedRegEvent:
     unpack = e.unpack
 
     cls = vgm.YM2612Port0
