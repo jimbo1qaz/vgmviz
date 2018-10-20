@@ -151,8 +151,13 @@ class Writer:
             nbytes = bits // 8
 
             def set_integer(value: int, addr: int = None) -> None:
-                data = value.to_bytes(nbytes, self.endian, signed=signed)
-                self.bytes_(data, addr)
+                try:
+                    data = value.to_bytes(nbytes, self.endian, signed=signed)
+                    self.bytes_(data, addr)
+                except Exception as e:
+                    import sys
+                    raise type(e)(f'bits={bits}, signed={signed}')
+
 
             return set_integer
 

@@ -209,31 +209,35 @@ def _struct_read(
 
 
 def _struct_write(obj: _AnyStruct, wrt: Writer, value: Any, f: Field) -> None:
-    cls = type(obj)
     try:
-        metadata = _get_meta(f)
-    except KeyError:
-        raise TypeError(f'broken type {cls}: field {f.name} missing metadata')
+        cls = type(obj)
+        try:
+            metadata = _get_meta(f)
+        except KeyError:
+            raise TypeError(f'broken type {cls}: field {f.name} missing metadata')
 
-    write_args = [value]
-    write_kwargs = {}
+        write_args = [value]
+        write_kwargs = {}
 
-    # Parametric fields are encoded via obj.command(), and do not need to be written.
-    if metadata.parameterize:
-        # assert not metadata.method
-        if not getattr(cls, 'is_multiple_commands', None):
+        # Parametric fields are encoded via obj.command(), and do not need to be written.
+        if metadata.parameterize:
+            # assert not metadata.method
+            if not getattr(cls, 'is_multiple_commands', None):
+                raise ValueError(
+                    f'non-parametric {cls} cannot have parametric field {f.name}')
+            return
+
+        elif metadata.method:
+            # Destination address
+            if metadata.addr is not None:
+                write_kwargs['addr'] = metadata.addr
+
+            # Write fields which were read from command parameters.
+            getattr(wrt, metadata.method)(*write_args, **write_kwargs)
+
+        else:
             raise ValueError(
-                f'non-parametric {cls} cannot have parametric field {f.name}')
-        return
-
-    elif metadata.method:
-        # Destination address
-        if metadata.addr is not None:
-            write_kwargs['addr'] = metadata.addr
-
-        # Write fields which were read from command parameters.
-        getattr(wrt, metadata.method)(*write_args, **write_kwargs)
-
-    else:
-        raise ValueError(
-            f'cannot decode event {cls}: field {f.name} has empty metadata')
+                f'cannot decode event {cls}: field {f.name} has empty metadata')
+    except Exception as e:
+        import sys
+        raise type(e)(f'class={cls}, field={f.name}')
