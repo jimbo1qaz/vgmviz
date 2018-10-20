@@ -1,4 +1,5 @@
-from typing import Any, List, Callable, Type, TypeVar, Tuple
+import copy
+from typing import Any, List, Callable, Type, TypeVar, Tuple, NamedTuple
 
 import dataclasses
 from dataclasses import dataclass
@@ -199,8 +200,7 @@ class PSGWrite(EventStruct):
 
 # **** Add timestamps to LinearEventList ****
 
-@dataclass
-class TimedEvent:
+class TimedEvent(NamedTuple):
     time: int
     event: EventStruct
 
@@ -208,7 +208,7 @@ class TimedEvent:
 TimedEventList = List[TimedEvent]
 
 
-def time_event_list(events: LinearEventList) -> TimedEventList:
+def timed_from_linear(events: LinearEventList) -> TimedEventList:
     time = 0
     time_events: TimedEventList = []
 
@@ -221,23 +221,40 @@ def time_event_list(events: LinearEventList) -> TimedEventList:
     return time_events
 
 
-# def wait_event_list(time_events: TimedEventList) -> LinearEventList:
-#     """ Converts a timed event list to a regular event list.
-#     Only Wait16Bit will be used. All PCMWriteWait events will have duration 0. """
-#     prev_time = 0
-#     events: LinearEventList = []
-#
-#     for time, event in time_events:
-#         if not isinstance(event, PureWait):
-#             if time > prev_time:
-#                 events.append(Wait16Bit)
-#             events.append(event)
-#
-#             if isinstance(event, IWait):
-#                 event = copy.copy(event)
-#                 event.delay = 0
-#
-#             prev_time = time
+time_event_list = timed_from_linear
+
+
+def linear_from_timed(time_events: TimedEventList) -> LinearEventList:
+    """ Converts a timed event list to a regular event list.
+    Only Wait16Bit will be used. All PCMWriteWait events will have duration 0. """
+    prev_time = 0
+    events: LinearEventList = []
+
+    for time, event in time_events:
+        if not isinstance(event, PureWait):
+            if time > prev_time:
+                events += _wait_for_time(time - prev_time)
+                prev_time = time
+
+            if isinstance(event, IWait):
+                event = copy.copy(event)
+                event.delay = 0
+
+            events.append(event)
+
+    return events
+
+
+def _wait_for_time(duration: int) -> List[EventStruct]:
+    out: List[Wait16Bit] = []
+    while duration:
+        event_time = min(duration, 0xFFFF)
+        duration -= event_time
+
+        event = Wait16Bit(event_time)
+        out.append(event)
+
+    return out
 
 
 def keep_type(time_events: TimedEventList, classes: List[type]) -> TimedEventList:
@@ -248,7 +265,7 @@ def keep_type(time_events: TimedEventList, classes: List[type]) -> TimedEventLis
     ]
 
 
-_Condition = Callable[[T], bool]
+_Condition = Callable[[EventStruct], bool]
 
 
 def filter_ev_type(
